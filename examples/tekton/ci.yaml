@@ -1,0 +1,92 @@
+# CI of this repository, run by Pipelines-as-Code (PaC) on the lab cluster.
+# On every pull request to main, and every push to main, PaC creates this
+# PipelineRun in namespace pac-demo; it clones the commit, lints and tests it.
+# The result is reported to Forgejo as the commit status
+# "Pipelines as Code CI / ci", plus comments on pull requests.
+#
+# Two kinds of placeholders appear below:
+# - {{ ... }} are filled in by PaC before the run is created, from the webhook
+#   event (repository URL, commit, the per-run Git credentials secret);
+# - $(...) are resolved by Tekton when the run executes (workspace paths).
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: ci                  # PaC adds a random suffix: ci-xxxxx
+  annotations:
+    # Which events start this run: pull requests targeting main, pushes to main.
+    pipelinesascode.tekton.dev/on-event: "[pull_request, push]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    # PaC deletes older runs of this pipeline beyond the last 5.
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  pipelineSpec:
+    workspaces:
+      - name: source        # the checked-out code
+      - name: git-auth      # credentials to clone the private repository
+      - name: ca            # the example.org CA, to trust Forgejo's certificate
+    tasks:
+      # A single task on purpose: its steps run in one pod and share the
+      # emptyDir "source" workspace. Separate tasks would run in separate pods
+      # and need a persistent volume to pass the code along, and the cluster has
+      # no storage class.
+      - name: lint-and-test
+        workspaces:
+          - {name: source, workspace: source}
+          - {name: git-auth, workspace: git-auth}
+          - {name: ca, workspace: ca}
+        taskSpec:
+          workspaces:
+            - name: source
+            - name: git-auth
+            - name: ca
+          stepTemplate:
+            workingDir: $(workspaces.source.path)
+            env:
+              # A writable home shared by all steps (git and pip write there).
+              - {name: HOME, value: /tekton/home}
+          steps:
+            - name: clone
+              image: docker.io/alpine/git:2.52.0
+              script: |
+                #!/bin/sh
+                set -eu
+                # PaC puts a .git-credentials (holding pac-bot's token) and a
+                # .gitconfig enabling it into the per-run secret; git reads
+                # both from $HOME.
+                cp $(workspaces.git-auth.path)/.git-credentials $(workspaces.git-auth.path)/.gitconfig "$HOME/"
+                git config --global http.sslCAInfo $(workspaces.ca.path)/site-root-ca.crt
+                # Git refuses a repository owned by another user; images that
+                # run as non-root would hit this on the shared workspace.
+                git config --global --add safe.directory '*'
+                # Fetch only the commit under test, not the whole history.
+                git init -q .
+                git remote add origin "{{ repo_url }}"
+                git fetch -q --depth 1 origin "{{ revision }}"
+                git checkout -q FETCH_HEAD
+                git log -1 --format='%h %s'   # shows in the log which commit was tested
+            - name: lint
+              image: docker.io/library/python:3.14-slim
+              script: |
+                #!/bin/sh
+                set -eu
+                pip install -q --disable-pip-version-check --root-user-action=ignore ruff
+                ruff check .
+            - name: test
+              image: docker.io/library/python:3.14-slim
+              script: |
+                #!/bin/sh
+                set -eu
+                pip install -q --disable-pip-version-check --root-user-action=ignore pytest
+                python -m pytest -v
+  workspaces:
+    # Scratch space that lives as long as the task's pod.
+    - name: source
+      emptyDir: {}
+    # Created by PaC for each run and deleted with it.
+    - name: git-auth
+      secret:
+        secretName: "{{ git_auth_secret }}"
+    # Created once per namespace (by the platform that serves this repository).
+    - name: ca
+      configMap:
+        name: site-root-ca

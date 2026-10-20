@@ -1,0 +1,11 @@
+[project]
+name = "greet"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+# Import the package from src/ without installing it (the CI only installs pytest).
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
