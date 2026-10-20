@@ -13,9 +13,9 @@ python3 -m pytest                          # locally, with pytest installed
 Try it: open a pull request that breaks a test (e.g. change the greeting) and
 watch the status turn red; comment `/retest` to run it again.
 
-Cluster side (namespace `pac-demo`, webhook, credentials): gitops
-[`clusters/lab/ci/pac-demo/repository.yaml`](https://github.com/vincentbrobald/gitops/blob/main/clusters/lab/ci/pac-demo/repository.yaml)
-(see the gitops repository's [Platform CI repositories](https://github.com/vincentbrobald/gitops/blob/main/docs/reference/ci-repository.md)).
+Cluster side (namespace `pac-demo`, webhook, credentials): the gitops
+repository's `clusters/<cluster>/ci/pac-demo/repository.yaml` (see its
+[Platform CI repositories](https://github.com/vincentbrobald/gitops/blob/main/docs/reference/ci-repository.md)).
 
 ## Design decisions
 

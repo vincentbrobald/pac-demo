@@ -20,5 +20,6 @@ where it is used and maintained.
 ### Configured from the GitOps repository
 
 **Decision.** Its namespace, PaC Repository, webhook and collaborator come
-from gitops [`clusters/lab/ci/pac-demo/repository.yaml`](https://github.com/vincentbrobald/gitops/blob/main/clusters/lab/ci/pac-demo/repository.yaml), like every platform
-CI repository.
+from the gitops repository's `clusters/<cluster>/ci/pac-demo/repository.yaml`,
+like every platform CI repository
+([Platform CI repositories](https://github.com/vincentbrobald/gitops/blob/main/docs/reference/ci-repository.md)).
